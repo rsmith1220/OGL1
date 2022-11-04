@@ -8,9 +8,11 @@ from OpenGL.GL.shaders import compileProgram, compileShader
 
 from obj import Obj
 
+from pygame import image
+
 
 class Model(object):
-    def __init__(self, objName):
+    def __init__(self, objName, textureName):
         self.model = Obj(objName)
 
         self.createVertexBuffer()
@@ -18,6 +20,9 @@ class Model(object):
         self.position = glm.vec3(0,0,0)
         self.rotation = glm.vec3(0,0,0)
         self.scale = glm.vec3(1,1,1)
+        self.textureSurface = image.load(textureName)
+        self.textureData = image.tostring(self.textureSurface, "RGB", True)
+        self.texture = glGenTextures(1)
 
 
     def createVertexBuffer(self):
@@ -134,6 +139,20 @@ class Model(object):
 
         glEnableVertexAttribArray(2)
 
+        glActiveTexture( GL_TEXTURE0 )
+        glBindTexture(GL_TEXTURE_2D, self.texture)
+        glTexImage2D(GL_TEXTURE_2D,                     # Texture Type
+                     0,                                 # Positions
+                     GL_RGB,                            # Format
+                     self.textureSurface.get_width(),   # Width
+                     self.textureSurface.get_height(),  # Height
+                     0,                                 # Border
+                     GL_RGB,                            # Format
+                     GL_UNSIGNED_BYTE,                  # Type
+                     self.textureData)                  # Data
+
+        glGenerateMipmap(GL_TEXTURE_2D)
+
         glDrawArrays(GL_TRIANGLES, 0, self.polycount * 3 )
 
 
@@ -145,8 +164,18 @@ class Renderer(object):
         glEnable(GL_DEPTH_TEST)
         glViewport(0,0, self.width, self.height)
 
+        self.filledMode()
+
         self.scene = []
         self.active_shader = None
+
+        self.pointLight = glm.vec3(0,0,0)
+        self.time = 0
+        self.value = 0;
+
+        self.target = glm.vec3(0,0,0)
+        self.angle = 0
+        self.camDistance = 5
 
         # ViewMatrix
         self.camPosition = glm.vec3(0,0,0)
@@ -159,6 +188,12 @@ class Renderer(object):
                                                 0.1,                    # Near Plane
                                                 1000)                   # Far Plane
         
+
+    def filledMode(self):
+        glPolygonMode(GL_FRONT, GL_FILL)
+
+    def wireframeMode(self):
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
 
     def getViewMatrix(self):
         identity = glm.mat4(1)
@@ -184,7 +219,7 @@ class Renderer(object):
             self.active_shader = None
 
     def update(self):
-        self.viewMatrix = self.getViewMatrix()
+        self.viewMatrix = glm.lookAt(self.camPosition, self.target, glm.vec3(0,1,0))
 
     def render(self):
         glClearColor(0.2,0.2,0.2, 1)
@@ -198,6 +233,12 @@ class Renderer(object):
 
             glUniformMatrix4fv( glGetUniformLocation(self.active_shader, "projectionMatrix"),
                                 1, GL_FALSE, glm.value_ptr(self.projectionMatrix))
+
+            glUniform1i( glGetUniformLocation(self.active_shader, "tex"), 0)
+
+            glUniform1f( glGetUniformLocation(self.active_shader, "time"), self.time)
+
+            glUniform3fv( glGetUniformLocation(self.active_shader, "pointLight"), 1, glm.value_ptr(self.pointLight))
 
 
         for obj in self.scene:
